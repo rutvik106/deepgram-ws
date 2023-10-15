@@ -40,10 +40,12 @@ async def connect_to_deepgram(transcript_received_handler: Callable[[Dict], None
         socket.registerHandler(socket.event.CLOSE, lambda c: print(f'Connection closed with code {c}.'))
         socket.registerHandler(socket.event.TRANSCRIPT_RECEIVED, transcript_received_handler)
 
+        if not socket:
+            raise Exception("Failed to connect to Deepgram.")
+
         return socket
     except Exception as e:
         raise Exception(f'Could not open socket: {e}')
-
 
 @app.get("/", response_class=HTMLResponse)
 def get(request: Request):
@@ -54,8 +56,11 @@ def get(request: Request):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
+    deepgram_socket = None
     try:
         deepgram_socket = await process_audio(websocket)
+        if not deepgram_socket:
+            raise Exception("Failed to process audio due to socket issues.")
 
         while True:
             data = await websocket.receive_bytes()
