@@ -4,12 +4,13 @@ from fastapi.templating import Jinja2Templates
 from typing import Dict, Callable
 from deepgram import Deepgram
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
 app = FastAPI()
 
-dg_client = Deepgram("52e4f60fd0fcc7c5884024eeacea9c5281b3b8cd")
+dg_client = Deepgram("62048d5bef9b57cfb28e0f43cd490f72da16bb03")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -29,23 +30,14 @@ async def process_audio(fast_socket: WebSocket):
 
 async def connect_to_deepgram(transcript_received_handler: Callable[[Dict], None]):
     try:
-        socket = await dg_client.transcription.live(
-            {
-                'language': "en",
-                'punctuate': True,
-                'smart_format': True,
-                'model': "nova",
-            }
-        )
+        socket = await dg_client.transcription.live({'punctuate': True, 'interim_results': False})
         socket.registerHandler(socket.event.CLOSE, lambda c: print(f'Connection closed with code {c}.'))
         socket.registerHandler(socket.event.TRANSCRIPT_RECEIVED, transcript_received_handler)
-
-        if not socket:
-            raise Exception("Failed to connect to Deepgram.")
 
         return socket
     except Exception as e:
         raise Exception(f'Could not open socket: {e}')
+
 
 @app.get("/", response_class=HTMLResponse)
 def get(request: Request):
@@ -56,11 +48,8 @@ def get(request: Request):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
-    deepgram_socket = None
     try:
         deepgram_socket = await process_audio(websocket)
-        if not deepgram_socket:
-            raise Exception("Failed to process audio due to socket issues.")
 
         while True:
             data = await websocket.receive_bytes()
