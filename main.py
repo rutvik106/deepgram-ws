@@ -4,64 +4,41 @@ from fastapi.templating import Jinja2Templates
 from typing import Dict, Callable
 from deepgram import Deepgram
 from dotenv import load_dotenv
-import os
-import time
 
-# load_dotenv()
+load_dotenv()
 
 app = FastAPI()
 
-dg_client = Deepgram("17a9ed37235d276fb11dd3200e402a28f6eab5e1")
+dg_client = Deepgram("52e4f60fd0fcc7c5884024eeacea9c5281b3b8cd")
 
 templates = Jinja2Templates(directory="templates")
-
-silence_was_detected = False
-window_time = 0
 
 
 async def process_audio(fast_socket: WebSocket):
     async def get_transcript(data: Dict) -> None:
         if 'channel' in data:
-            transcript = data["channel"]["alternatives"][0]["transcript"]
-        print("socket: transcript sent to client")
-        print(transcript)
+            transcript = data['channel']['alternatives'][0]['transcript']
 
-        if transcript == "":
-            print("transcription is empty; this could be silence")
+            if transcript:
+                await fast_socket.send_text(transcript)
 
-            global silence_was_detected
-            global window_time
+    deepgram_socket = await connect_to_deepgram(get_transcript)
 
-            if not silence_was_detected:
-                silence_was_detected = True
-                window_time = time.time() + 1500  # 0.5 seconds
-                print("silence was detected (true)")
-                print("created 2-second window")
-            elif time.time() > window_time:
-                print("silence was more than 2 seconds; closing the mic")
-                await fast_socket.send_json({'transcript': transcript, 'silence detected': True, 'response': 400})
-        else:
-            if silence_was_detected:
-                print("silence was already detected")
-                print("transcription was not empty, so resetting silence flag")
-                await fast_socket.send_json({'response': 200, "silence detected": False, "transcript": transcript})
-
-            silence_was_detected = False
+    return deepgram_socket
 
 
 async def connect_to_deepgram(transcript_received_handler: Callable[[Dict], None]):
     try:
-        socket = await dg_client.transcription.live({
-            'language': "en",
-            'punctuate': True,
-            'smart_format': True,
-            'model': "nova",
-            # 'endpointing': 500,
-            # 'utterence_end_ms': 2000
-        })
+        socket = await dg_client.transcription.live(
+            {
+                'language': "en",
+                'punctuate': True,
+                'smart_format': True,
+                'model': "nova",
+            }
+        )
         socket.registerHandler(socket.event.CLOSE, lambda c: print(f'Connection closed with code {c}.'))
         socket.registerHandler(socket.event.TRANSCRIPT_RECEIVED, transcript_received_handler)
-        # socket.registerHandler(socket.event.TRANSCRIPT_COMPLETED , lambda e: print(f'Silence was detected {e}.'))
 
         return socket
     except Exception as e:
@@ -82,9 +59,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
         while True:
             data = await websocket.receive_bytes()
-            print(data)
             deepgram_socket.send(data)
-
     except Exception as e:
         raise Exception(f'Could not process audio: {e}')
     finally:
