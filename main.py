@@ -28,6 +28,7 @@ async def process_audio(fast_socket: WebSocket):
     return deepgram_socket
 
 
+
 async def connect_to_deepgram(transcript_received_handler: Callable[[Dict], None]):
     try:
         socket = await dg_client.transcription.live({'punctuate': True, 'interim_results': False})
