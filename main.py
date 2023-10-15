@@ -34,7 +34,7 @@ async def process_audio(fast_socket: WebSocket):
 
             if not silence_was_detected:
                 silence_was_detected = True
-                window_time = time.time() + 2  # 0.5 seconds
+                window_time = time.time() + 1500  # 0.5 seconds
                 print("silence was detected (true)")
                 print("created 2-second window")
             elif time.time() > window_time:
@@ -47,10 +47,6 @@ async def process_audio(fast_socket: WebSocket):
                 await fast_socket.send_json({'response': 200, "silence detected": False, "transcript": transcript})
 
             silence_was_detected = False
-
-    deepgram_socket = await connect_to_deepgram(get_transcript)
-
-    return deepgram_socket
 
 
 async def connect_to_deepgram(transcript_received_handler: Callable[[Dict], None]):
